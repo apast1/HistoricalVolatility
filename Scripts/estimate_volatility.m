@@ -98,7 +98,9 @@ function vol = estimate_volatility_internal(data,t,est,bw,cln)
             res = (0.273520 * s1) + (0.160358 * s2) + (0.365212 * s3) + (0.200910 * s4);
             param = sqrt(252 / bw);
             fun = @(x) param * sqrt(sum(x));
-        case 'P'        
+        case 'P'
+            % Parkinson High-Low volatility. Validated against the TTR implementation. 
+            % For formula see: https://www.rdocumentation.org/packages/TTR/versions/0.23-2/topics/volatility
             res = log(data.High ./ data.Low) .^ 2;
             param = sqrt(252 / (bw * 4 * log(2)));
             fun = @(x) param * sqrt(sum(x));
@@ -110,26 +112,85 @@ function vol = estimate_volatility_internal(data,t,est,bw,cln)
             param = sqrt(252 / bw);
             fun = @(x) param * sqrt(sum(x));
         case 'YZ'
+            %% ---------------------------------------------------
+            % COMPUTE YANG-ZHANG VOLATILITY
+            
+            % YZ volatility is a weighted sum of 
+            % sigma_o = Open/Close, 
+            % simga_c = Close/Open,  
+            % sigma_rs = Roger-Satchell volatility. 
+            % The calculation was validated against the R - TTR package.
+            % https://www.rdocumentation.org/packages/TTR/versions/0.23-2/topics/volatility
+            
             co = log(data.Close ./ data.Open);
             ho = log(data.High ./ data.Open);
             lo = log(data.Low ./ data.Open);
-            res = [(log(data.Open ./ [NaN; data.Close(1:end-1)]) .^ 2) (data.Return .^ 2) ((ho .* (ho - co)) + (lo .* (lo - co)))];
+            hc = log(data.High ./ data.Close); 
+            lc = log(data.Low ./ data.Close);
+            
+            % Create matrix with columns: log(Open/Close), log(Close/Open)
+            % and Roger-Satchel values for the full time window.
+            res = [(log(data.Open ./ [NaN; data.Close(1:end-1)])) ...
+                  (co) ((ho .* hc) + (lo .* lc))];
+            
+            % Assign k parameter. The value is equivalent to alpha = 1.34.
             k = 0.34 / (1.34 + ((bw + 1) / (bw - 1)));
-            param1 = sqrt(252 / (bw - 1));
-            param2 = [1 k (1 - k)];
-            fun = @(x) param1 * sqrt(sum(sum(x,1) .* param2));        
-    end
+            
+            % Assign the vector of weights for each volatility type.
+            param1 = [1 k (1 - k)];
+            
+            % Define two 'summary' functions to be applied to the 
+            % rolling windows.
 
-    win = get_rolling_windows(res,bw);
-    win_len = length(win);
-    win_dif = t - win_len;
-    
-    vol = NaN(t,1);
-    
-    for i = 1:win_len
-        vol(i+win_dif) = fun(win{i});
+            % Weighted variance is applied to sigma_o and sigma_c.
+            fun_co = @(x)  252 .* var(x);
+            
+            % A weighted sum is applied to sigma_rs.
+            fun_rs = @(x)  252/bw .* sum(x);
     end
+    %% ---------------------------------------------------
+    % COMPUTE VOLATILITY ON ROLLING WINDOWS
+
+    % Get the rolling windows for each volatility measure.
+    win = get_rolling_windows(res,bw);
     
+    % The number of rolling windows.
+    win_len = length(win);
+
+    % Difference between length of series and number of rolling windows.
+    win_dif = t - win_len;
+   
+    % Initialize the volatility vector.
+    vol = NaN(t,1);
+
+    % In the switch block above, each case block (other than Y-Z) defines
+    % a single "summary" function (fun). The Y-Z volatility calculation requires
+    % two 'summary' functions, which in turn requires the additional conditional 
+    % block below.
+
+    % Is Yang-Zhang volatility being calculated?
+    if(~strcmp(est, 'YZ'))
+    % YES: This is not YZ so calculate the rolling volatility using 
+    % the "summary" function (fun) 
+   
+      for i = 1:win_len
+          vol(i+win_dif) = fun(win{i});
+      end
+    % NO : this is Y-Z volatility being calculated  
+    else
+   
+      for i = 1:win_len
+
+        % Compute the weighted volatilities using the two "summary" functions.
+        weighted_vol = param1 .* [fun_co(win{i}(:, 1:2)) fun_rs(win{i}(:, 3))];
+        
+        % The square-root of the sum is approximately the 
+        % standard annual percent deviation.
+        vol(i+win_dif) = sqrt(sum(weighted_vol));
+      end
+    end % if(~YZ) 
+
+    % Remove NaN values.
     if (cln)
         vol(isnan(vol)) = [];
     end
