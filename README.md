@@ -1,6 +1,6 @@
 # Historical Volatility
 
-This fork of the HistoricalVolatility repository. This fork updates the Yang-Zhang volatiltiy estimator in the `estimate_volatility` function. The changes made to the function were: 
+This fork of the HistoricalVolatility repository. This fork updates the Yang-Zhang volatility estimator in the `estimate_volatility` function. The changes made to the function were: 
 1. Updated the calculation of the `sigma_c^2` volatility component to use Open/Close data rather than returns.
 2. Updated the calculation of Roger-Satchel volatility component to use use an average calculated with 1/n rather than 1/(n-1). 
 
