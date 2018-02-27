@@ -1,7 +1,19 @@
 # Historical Volatility
 
-I created this script in 2013 for a university team project.
-It can calculate and analyse the following historical volatility estimators:
+This fork of the HistoricalVolatility repository. This fork updates the Yang-Zhang volatiltiy estimator in the `estimate_volatility` function. The changes made to the function were: 
+1. Updated the calculation of the `sigma_c^2` volatility component to use Open/Close data rather than returns.
+2. Updated the calculation of Roger-Satchel volatility component to use use an average calculated with 1/n rather than 1/(n-1). 
+
+These two corrections match the reference equations in the [TTR documentation](https://github.com/TommasoBelluzzo/HistoricalVolatility), which follow that equations in the original Yang-Zhang paper. 
+
+Tests on a sample dataset show the results of the updated function match that of the TTR output of the `volatility` function for Yang-Zhang volatility. 
+
+The original description of the repository is below.
+
+--------
+
+# About 
+The functions in the repository can calculate and analyse the following historical volatility estimators:
 * the traditional Close-to-Close estimator and a variant that uses demeaned returns;
 * the Parkinson estimator (1980);
 * the Garman-Klass estimator (1980) and a variant proposed by Yang & Zhang (2000);
